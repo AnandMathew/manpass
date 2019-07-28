@@ -290,10 +290,20 @@ function login(&$request, &$response, &$db) {
     
       $stmt->execute();
 
+      $token =  bin2hex(random_bytes(8);
+
+
+      $stmt = $db->prepare("INSERT OR REPLACE INTO web_session (sessionid, expires, metadata) VALUES (:sessionid, :expires, null)");
+      $stmt->bindValue(':sessionid', $token, SQLITE3_TEXT);
+      $stmt->bindValue(':expires', $expires, SQLITE3_TEXT);
+      $stmt->execute();
+
       $response->set_http_code(200); // OK
       $response->success("Successfully logged in.");
 
       $response->add_cookie("session-cookie", $sessionid);
+
+      $response->set_token("passdb-token", $token);
       log_to_console("Session created, dawg.");
     
     } else {
