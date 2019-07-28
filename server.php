@@ -16,6 +16,7 @@ define("COOKIE_PATH", "");
 define("COOKIE_DOMAIN", "");
 define("NOT_SECURE", false);
 define("HTTP_ONLY", true);
+// define("SAMESITE", "Strict");
 
 // The request method
 $request_method = $_SERVER["REQUEST_METHOD"];

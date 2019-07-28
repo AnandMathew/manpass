@@ -1,4 +1,4 @@
-"use strict";
+ "use strict";
 
 /*****************************************************************************
  * This is the JavaScript file that students need to modify to implement the 
@@ -82,7 +82,9 @@
  *      a3.set(a2, a1.length);
  *
  *****************************************************************************/
-
+function ab2str(buf) {
+  return String.fromCharCode.apply(null, new Uint8Array(buf));
+}
 
 /**
  * This is an async function that should return the username and password to send
@@ -95,6 +97,7 @@ async function credentials(username, password) {
   idResult = await serverRequest("identify", {"username":username});
   // bail if something went wrong
   if (!idResult.response.ok) {
+    console.log("something went wrong in ideentify")
     serverStatus(idResult);
     return 0;
   }
@@ -114,14 +117,36 @@ function login(userInput, passInput) {
   credentials(username, password).then(function(idJson) {
     // do any needed work with the credentials
 
+    console.log(idJson);
+
+    var salt = idJson.salt;
+    var challenge = idJson.challenge;
+
     // encrypt the passwords using crypto
   
     // Send a login request to the server.
 
 
-    genPass(password).then((generatedPassword) => {
-      serverRequest("login", // resource to call
-                        {"username":username, "password":generatedPassword} // this should be populated with needed parameters
+   hasher(password).then((generatedPassword) => {
+
+    const generatedPasswordHex = bufferToHexString(generatedPassword);
+
+    console.log("password hashed by itself: " + generatedPasswordHex);
+
+    hasher(generatedPasswordHex + salt).then((generatedPassword2) => {
+
+      const generatedPassword2Hex = bufferToHexString(generatedPassword2);
+
+      console.log("password hashed with salt: " + salt + " ///  " + generatedPassword2Hex);
+
+      hasher(generatedPassword2Hex + challenge).then((generatedPassword3) => {
+
+        const generatedPassword3Hex = bufferToHexString(generatedPassword3);
+
+        console.log("what is sent to the server: " +  challenge + " ///// " + generatedPassword3Hex);
+
+          serverRequest("login", // resource to call
+                        {"username":username, "password":generatedPassword3Hex} // this should be populated with needed parameters
           ).then(function(result) {
             // If the login was successful, show the dashboard.
             if (result.response.ok) {
@@ -136,14 +161,19 @@ function login(userInput, passInput) {
               serverStatus(result);
             }
           });
+
+
+        });
+
+      });
     });
     
 
   });
 }
 
-const genPass = async function(password) {
-  const pwUtf8 = new TextEncoder().encode(password);
+const hasher = async function(password) {
+  const pwUtf8 = new TextEncoder("utf-8").encode(password);
   const passHash = await crypto.subtle.digest('SHA-256', pwUtf8);
   return passHash;
 }
@@ -161,11 +191,15 @@ function signup(userInput, passInput, passInput2, emailInput) {
   // do any preprocessing on the user input here before sending to the server
 
   
-    genPass(password).then((generatedPassword) => {
-      const salt = bufferToHexString(crypto.getRandomValues(new Uint8Array(16)));
+   hasher(password).then((generatedPassword) => {
+
+    const genhexpass = bufferToHexString(generatedPassword);
+     console.log(" signup: " + genhexpass);
+     
+      // const salt = bufferToHexString(crypto.getRandomValues(new Uint8Array(16)));
           // send the signup form to the server
           serverRequest("signup",  // resource to call
-          {"username":username, "password":generatedPassword, "salt":salt , "email":email} // this should be populated with needed parameters
+          {"username":username, "password":genhexpass, "email":email} // this should be populated with needed parameters
         ).then(function(result) {
           // if everything was good
             if (result.response.ok) {

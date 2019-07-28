@@ -112,6 +112,16 @@
  *****************************************************************************/
 
 
+function random_str($length, $keyspace = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+{
+    $pieces = [];
+    $max = strlen($keyspace, '8bit') - 1;
+    for ($i = 0; $i < $length; ++$i) {
+        $pieces []= $keyspace[random_int(0, $max)];
+    }
+    return implode('', $pieces);
+}
+
 /**
  * Performs any resource agnostic preflight validation and can set generic response values.
  * If the request fails any checks, preflight should return false and set appropriate
@@ -136,7 +146,7 @@ function signup(&$request, &$response, &$db) {
   $password = $request->param("password"); // The requested password from the client
   $email    = $request->param("email");    // The requested email address from the client
 
-  $salt    = $request->param("salt"); 
+  $salt  = bin2hex(random_bytes(8)); 
   
   $stmt = $db->prepare("insert into user_login values(:username, :salt, null, null )");
   $stmt->bindValue(':username', $username, SQLITE3_TEXT);
@@ -144,7 +154,7 @@ function signup(&$request, &$response, &$db) {
   $stmt->execute();
 
 
-  $password = hash("sha256", $password . $salt);
+  $password = hash("sha256", $password . $salt);  // stored in database
 
    
 
@@ -176,6 +186,36 @@ function signup(&$request, &$response, &$db) {
 function identify(&$request, &$response, &$db) {
   $username = $request->param("username"); // The username
 
+ // check if user name exists in the database
+
+ // if exists then retrieve salt, generate challenge and send that to the server, also store challenge in the user_login table
+
+  $challenge = bin2hex(random_bytes(8)); 
+
+  $sql = "update user_login set challenge = :challenge WHERE username = :username";
+  $stmt = $db->prepare($sql);
+  $stmt->bindValue(':username', $username, SQLITE3_TEXT);
+  $stmt->bindValue(':challenge', $challenge, SQLITE3_TEXT);
+  $stmt->execute();
+
+  
+
+  
+
+  $sql = "SELECT salt FROM user_login WHERE username = :username";
+  $stmt = $db->prepare($sql);
+  $stmt->bindValue(':username', $username, SQLITE3_TEXT);
+
+  $stmt->execute();
+
+  $salt = $stmt->fetch(PDO:: FETCH_ASSOC);
+  $salt = $salt['salt'];
+
+  $response->set_data("challenge", $challenge);
+  $response->set_data("salt", $salt);
+
+
+
   $response->set_http_code(200);
   $response->success("Successfully identified user.");
   log_to_console("Success.");
@@ -193,31 +233,39 @@ function login(&$request, &$response, &$db) {
   $password = $request->param("password"); // The password with which to log in
 
   log_to_console("username: " . $username);
-  log_to_console("password: " . $password);
+  log_to_console("computed value from client: " . $password);
 
-  $sql = "SELECT salt FROM user_login WHERE username = :username";
+  $sql = "SELECT challenge FROM user_login WHERE username = :username";
   $stmt = $db->prepare($sql);
   $stmt->bindValue(':username', $username, SQLITE3_TEXT);
 
   $stmt->execute();
 
-  $salt = $stmt->fetch(PDO:: FETCH_ASSOC);
-  $salt = $salt['salt'];
+  $challenge = $stmt->fetch(PDO:: FETCH_ASSOC);
+  $challenge = $challenge['challenge'];
 
-  $password = hash("sha256", $password . $salt);
+  log_to_console("challenge from db: " . $challenge);
 
-  log_to_console("password: " . $password);
+  // $password = hash("sha256", $password . $salt);
+
+  // log_to_console("password: " . $password);
 
 
-  $sql = "SELECT * FROM user WHERE username = :username AND passwd = :password";
+  $sql = "SELECT passwd FROM user WHERE username = :username";
     $stmt = $db->prepare($sql);
     $stmt->bindValue(':username', $username, SQLITE3_TEXT);
-    $stmt->bindValue(':password', $password, SQLITE3_TEXT);
     $stmt->execute();
 
-    $result = $stmt->fetchAll();
+  $passindb = $stmt->fetch(PDO:: FETCH_ASSOC);
+  $passindb = $passindb['passwd'];
 
-    if (count($result) > 0) {
+  log_to_console("passwd from db: " . $passindb);
+
+  $servercomputedpass =  hash("sha256", $passindb . $challenge); 
+
+  log_to_console("computed value by server: " . $servercomputedpass);
+
+    if ($servercomputedpass == $password) {
   
       // create session 
 
@@ -248,12 +296,10 @@ function login(&$request, &$response, &$db) {
       $response->add_cookie("session-cookie", $sessionid);
       log_to_console("Session created, dawg.");
     
-
-
-
-
-
     } else {
+
+      log_to_console("servercomputedpass: " . $servercomputedpass);
+      log_to_console("pass from client: " . $password);
       $response->set_http_code(401); // OK
       $response->failure("User name or password is incorrect");
       log_to_console("Session not created.");
@@ -439,7 +485,7 @@ function load(&$request, &$response, &$db) {
   } else {
     $response->set_data("site", $site);
 
-    $response->set_http_code(401); // OK 
+    $response->set_http_code(404); // OK 
     $response->failure("Site data could not be retrieved: invalid session");
     log_to_console("Site data could not be retrieved: invalid session");
   }
@@ -451,6 +497,10 @@ function load(&$request, &$response, &$db) {
  * Delete the associated session if one exists.
  */
 function logout(&$request, &$response, &$db) {
+
+
+  $response->delete_cookie("session-cookie");
+
   $response->set_http_code(200);
   $response->success("Successfully logged out.");
   log_to_console("Logged out");
