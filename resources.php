@@ -290,10 +290,13 @@ function login(&$request, &$response, &$db) {
     
       $stmt->execute();
 
-      $token =  bin2hex(random_bytes(8);
+      $token = bin2hex(random_bytes(8));
 
 
-      $stmt = $db->prepare("INSERT OR REPLACE INTO web_session (sessionid, expires, metadata) VALUES (:sessionid, :expires, null)");
+      $stmt = $db->prepare("DELETE from web_session");
+      $stmt->execute();
+
+      $stmt = $db->prepare("INSERT INTO web_session (sessionid, expires, metadata) VALUES (:sessionid, :expires, null)");
       $stmt->bindValue(':sessionid', $token, SQLITE3_TEXT);
       $stmt->bindValue(':expires', $expires, SQLITE3_TEXT);
       $stmt->execute();
@@ -334,6 +337,7 @@ function sites(&$request, &$response, &$db) {
   $sites = array();
 
   $sessionid = $request->cookie("session-cookie");
+  $reqtoken =  $request->token("passdb-token");
 
   log_to_console("check the session id: ". $sessionid);
 
@@ -346,11 +350,22 @@ function sites(&$request, &$response, &$db) {
 
   $username = $stmt->fetch(PDO:: FETCH_ASSOC);
   $username = $username['username'];
+
+  $sql = "SELECT sessionid FROM web_session";
+  $stmt = $db->prepare($sql);
+  $stmt->execute();
+
+  $tokenstored = $stmt->fetch(PDO:: FETCH_ASSOC);
+  $tokenstored = $tokenstored['sessionid'];
+
+
+  // $username = $stmt->fetch(PDO:: FETCH_ASSOC);
+  // $username = $username['username'];
  
 
   log_to_console("get my username: ". $username);
 
-  if ($username != "") {
+  if (($username != "") and ($tokenstored == $reqtoken) ) {
     $stmt = $db->prepare('SELECT site from user_safe where username = :username');
     $stmt->bindValue(':username', $username, SQLITE3_TEXT);
     $stmt->execute();
@@ -394,6 +409,7 @@ function save(&$request, &$response, &$db) {
   // $username = $request->param("username");
 
   $sessionid = $request->cookie("session-cookie");
+  $reqtoken =  $request->token("passdb-token");
 
   log_to_console("check the session id: ". $sessionid);
 
@@ -410,7 +426,15 @@ function save(&$request, &$response, &$db) {
 
   log_to_console("get my username: ". $username);
 
-  if ($username != "") {
+
+  $sql = "SELECT sessionid FROM web_session";
+  $stmt = $db->prepare($sql);
+  $stmt->execute();
+
+  $tokenstored = $stmt->fetch(PDO:: FETCH_ASSOC);
+  $tokenstored = $tokenstored['sessionid'];
+
+  if (($username != "") and ($tokenstored == $reqtoken) ) {
 
     // log_to_console($username);
     // log_to_console($site);
@@ -458,6 +482,7 @@ function load(&$request, &$response, &$db) {
 
 
   $sessionid = $request->cookie("session-cookie");
+  $reqtoken =  $request->token("passdb-token");
 
   
   $sql = "SELECT username FROM user_session WHERE sessionid = :sessionid";
@@ -468,11 +493,20 @@ function load(&$request, &$response, &$db) {
 
   $username = $stmt->fetch(PDO:: FETCH_ASSOC);
   $username = $username['username'];
+
+
+  $sql = "SELECT sessionid FROM web_session";
+  $stmt = $db->prepare($sql);
+  $stmt->execute();
+
+  $tokenstored = $stmt->fetch(PDO:: FETCH_ASSOC);
+  $tokenstored = $tokenstored['sessionid'];
  
-  if ($username != "") {
-    $sql = "SELECT siteuser, sitepasswd, siteiv FROM user_safe WHERE site = :site";
+  if (($username != "") and ($tokenstored == $reqtoken) ) {
+    $sql = "SELECT siteuser, sitepasswd, siteiv FROM user_safe WHERE site = :site AND username = :username";
     $stmt = $db->prepare($sql);
     $stmt->bindValue(':site', $site, SQLITE3_TEXT);
+    $stmt->bindValue(':username', $username, SQLITE3_TEXT);
     $stmt->execute();
 
     $result = $stmt->fetch(PDO:: FETCH_ASSOC);
