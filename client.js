@@ -1,17 +1,6 @@
 "use strict";
 
-/*******************************************************************
- * This file should not be modified by students!
- * It provides boilerplate for application functionality and some
- * utility functions.
- *******************************************************************/
 var currentPage = "default";
-
-
-/*******************************************************************
- * This top part of the file contains the utility functions that 
- * students will need to use in their code.
- *******************************************************************/
 
 /**
  * This makes a request to the server using the passed parameters.
@@ -115,11 +104,6 @@ function bufferToUtf8(buffer) {
 function utf8ToUint8Array(utf8String) {
   return new TextEncoder("utf-8").encode(utf8String);
 }
-
-/*******************************************************************
- * Everything below this comment is boilerplate that students should
- * not call directly.  It is used to handle things like navigation.
- *******************************************************************/
 
 const loader = {
   "save" : sites,

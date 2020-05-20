@@ -129,9 +129,20 @@ function random_str($length, $keyspace = '0123456789abcdefghijklmnopqrstuvwxyzAB
  * resource from being called.
  */
 function preflight(&$request, &$response, &$db) {
-  $response->set_http_code(200);
-  $response->success("Request OK");
-  log_to_console("OK");
+
+
+
+  if ($request->header("Origin") == "http://localhost:8000" ) {
+    $response->set_http_code(200);
+    $response->success("Request OK");
+    log_to_console("OK");
+  }
+  else {
+    $response->set_http_code(400);
+    $response->failure("Request OK");
+    log_to_console("not ok");
+  }
+  
 
   return true;
 }
